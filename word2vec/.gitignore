@@ -1,0 +1,8 @@
+logs
+.vscode
+__pycache__
+text8
+enwik8
+data
+word2vec.ref
+word2vec
