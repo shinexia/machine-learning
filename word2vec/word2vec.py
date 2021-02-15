@@ -458,7 +458,7 @@ def save_vector(vector, vocab: Vocab, dest: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-train', type=str, default='data/text8', help='Use text data from <file> to train the model')
+    parser.add_argument('-train', type=str, default='../data/text8', help='Use text data from <file> to train the model')
     parser.add_argument('-output', type=str, default=0, help='Use <file> to save the resulting word vectors / word clusters')
     parser.add_argument('-size', type=int, default=_EMBEDDINGS_DIM, help='size of word vectors; default is 100')
     parser.add_argument('-window', type=int, default=5, help='Set max skip length between words; default is 5')
@@ -473,11 +473,11 @@ def main():
     parser.add_argument('-classes', type=int, default=0, help='Output word classes rather than word vectors; default number of classes is 0 (vectors are written)')
     parser.add_argument('-debug', type=int, default=2, help='Set the debug mode (default = 2 = more info during training)')
     parser.add_argument('-binary', type=int, default=0, help='Save the resulting vectors in binary moded; default is 0 (off)')
-    parser.add_argument('-save-vocab', type=str, default='data/vocab.txt', help='The vocabulary will be saved to <file>')
-    parser.add_argument('-read-vocab', type=str, default='data/vocab.txt', help='The vocabulary will be read from <file>, not constructed from the training data')
+    parser.add_argument('-save-vocab', type=str, default='logs/vocab.txt', help='The vocabulary will be saved to <file>')
+    parser.add_argument('-read-vocab', type=str, default='logs/vocab.txt', help='The vocabulary will be read from <file>, not constructed from the training data')
     parser.add_argument('-cbow', type=int, default=1, help='Use the continuous bag of words model; default is 1 (use 0 for skip-gram model')
 
-    parser.add_argument('-save-token', type=str, default='data/token.txt', help='The tokenized words will be saved to <file>')
+    parser.add_argument('-save-token', type=str, default='logs/token.txt', help='The tokenized words will be saved to <file>')
     parser.add_argument('-batch-size', '-bs', type=int, default=1, help='batch size')
     args = parser.parse_args()
     logging.info('args: %s', args)
