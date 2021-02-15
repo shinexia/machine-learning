@@ -61,7 +61,7 @@ def main():
         y_pred_v = model.pred(x_test)
         y_pred = np.sign(y_pred_v)
         acc = accuracy_score(y_test, y_pred)
-        logging.info('epoch: %s, accuracy: %s', epoch + 1, acc)
+        logging.info('epoch: %03d, accuracy: %s', epoch + 1, acc)
 
     logging.info('report')
     p = classification_report(y_test, y_pred)
