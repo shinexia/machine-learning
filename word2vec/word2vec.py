@@ -306,6 +306,7 @@ class DataLoader(object):
                     return
             center_word = sentence[pos]
             b = rand.nextint(self.window)
+            print('window: %s, seed: %s' % (b, rand.seed))
             window = self.window - b
             start_pos = max(0, pos - window)
             end_pos = min(pos + window + 1, len(sentence))
@@ -356,7 +357,35 @@ def sigmoid(f):
     return _exp_table[i]
 
 
-class Model(object):
+class UnigramTable(object):
+
+    def __init__(self, word_count_list: List[int]):
+        vocab_size = len(word_count_list)
+
+        table_size = int(1e8)
+        power = 0.75
+
+        train_words_pow = np.array(word_count_list, np.float)
+        train_words_pow = np.power(train_words_pow, power)
+        train_words_pow = train_words_pow / np.sum(train_words_pow)
+
+        table = np.zeros((table_size, ), dtype=np.int)
+        i = 0
+        d1 = train_words_pow[i]
+        for a in range(table_size):
+            table[a] = i
+            if a / table_size > d1:
+                i = min(i + 1, vocab_size - 1)
+                d1 += train_words_pow[i]
+
+        self.table = table
+        self.size = table_size
+
+    def __getitem__(self, idx):
+        return self.table[idx]
+
+
+class Word2Vec(object):
 
     def __init__(self, vocab: Vocab, embedding_dim: int = _EMBEDDINGS_DIM, mode: str = 'cbow', alpha=None, hs=1, negative=25):
         self.vocab = vocab
@@ -368,7 +397,13 @@ class Model(object):
         self.negative = negative
 
         self.syn0 = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float)
-        self.syn1 = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float)
+
+        if hs != 0:
+            self.syn1 = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float)
+
+        if negative > 0:
+            self.table = UnigramTable(word_count_list=[w.count for w in vocab.words])
+            self.syn1neg = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float)
 
         rand = Random(seed=1)
         a = 0
@@ -392,23 +427,51 @@ class Model(object):
     def _train_cbow(self, x, y):
         pass
 
-    def _train_skip_gram(self, center_word, context_word):
+    def _train_skip_gram(self, center_word, context_word, rand: Random = None):
         word_x = self.vocab[center_word]
         context_embedding = self.syn0[context_word]
         neu1e = np.zeros(self.embedding_dim)
-        for d, point in enumerate(word_x.point):
-            point_weight = self.syn1[point]
-            f = np.dot(context_embedding, point_weight)
-            if f >= _MAX_EXP:
-                continue
-            elif f <= -_MAX_EXP:
-                continue
-            else:
-                z = sigmoid(f)
-            g = (1 - word_x.code[d] - z) * self.alpha
-            print('x: %s, y: %s, p: %s, f: %.8f, z: %.8f, g: %.8f' % (center_word, context_word, point, f, z, g))
-            neu1e += g * point_weight
-            self.syn1[point] += g * context_embedding
+        if self.hs != 0:
+            for d, point in enumerate(word_x.point):
+                point_weight = self.syn1[point]
+                f = np.dot(context_embedding, point_weight)
+                if f >= _MAX_EXP:
+                    continue
+                elif f <= -_MAX_EXP:
+                    continue
+                else:
+                    z = sigmoid(f)
+                g = (1 - word_x.code[d] - z) * self.alpha
+                print('x: %s, y: %s, p: %s, f: %.8f, z: %.8f, g: %.8f' % (center_word, context_word, point, f, z, g))
+                neu1e += g * point_weight
+                self.syn1[point] += g * context_embedding
+        if self.negative > 0:
+            for d in range(self.negative + 1):
+                if d == 0:
+                    target = center_word
+                    label = 1
+                else:
+                    next_random = rand.nextint()
+                    i = (next_random >> 16) % self.table.size
+                    target = self.table[i]
+                    # print('target: %s, i: %s, seed: %s' % (target, i, rand.seed))
+                    if target == 0:
+                        target = next_random % (self.vocab_size - 1) + 1
+                    if target == center_word:
+                        continue
+                    label = 0
+                target_embedding = self.syn1neg[target]
+                f = np.dot(context_embedding, target_embedding)
+                if f > _MAX_EXP:
+                    z = 1
+                elif f < -_MAX_EXP:
+                    z = 0
+                else:
+                    z = sigmoid(f)
+                g = (label - z) * self.alpha
+                print('x: %s, y: %s, t: %s, f: %.8f, z: %.8f, g: %.8f' % (center_word, context_word, target, f, z, g))
+                neu1e += g * target_embedding
+                self.syn1neg[target] += g * context_embedding
         self.syn0[context_word] += neu1e
 
 
@@ -494,13 +557,13 @@ def main():
 
     mode = 'cbow' if args.cbow == 1 else 'sg'
     dataloader = DataLoader(vocab=vocab, tokenizer=tokenizer, mode=mode, batch_size=args.batch_size, window=args.window)
-    model = Model(vocab, embedding_dim=args.size, mode=mode, alpha=args.alpha)
+    model = Word2Vec(vocab, embedding_dim=args.size, mode=mode, alpha=args.alpha, hs=args.hs, negative=args.negative)
 
     train_rand = Random(seed=0)
     for epoch in range(args.iter):
         print('epoch: %s' % epoch)
         for x, y in dataloader.iter(rand=train_rand):
-            model.train(x, y)
+            model.train(x, y, rand=train_rand)
 
     save_vector(model.syn0, vocab=vocab, dest=args.output)
 

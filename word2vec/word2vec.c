@@ -451,6 +451,7 @@ void *TrainModelThread(void *id) {
     for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
     next_random = next_random * (unsigned long long)25214903917 + 11;
     b = next_random % window;
+    printf("window: %lld, seed: %llu\n", b, next_random);
     if (cbow) {  //train the cbow architecture
       // in -> hidden
       cw = 0;
@@ -547,7 +548,9 @@ void *TrainModelThread(void *id) {
             label = 1;
           } else {
             next_random = next_random * (unsigned long long)25214903917 + 11;
-            target = table[(next_random >> 16) % table_size];
+            long long i = (next_random >> 16) % table_size;
+            target = table[i];
+            // printf("target: %lld, i: %lld, seed: %llu\n", target, i, next_random);
             if (target == 0) target = next_random % (vocab_size - 1) + 1;
             if (target == word) continue;
             label = 0;
@@ -555,9 +558,11 @@ void *TrainModelThread(void *id) {
           l2 = target * layer1_size;
           f = 0;
           for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1neg[c + l2];
-          if (f > MAX_EXP) g = (label - 1) * alpha;
-          else if (f < -MAX_EXP) g = (label - 0) * alpha;
-          else g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
+          if (f > MAX_EXP) z = 1.0;
+          else if (f < -MAX_EXP) z = 0.0;
+          else z = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
+          g = (label - z) * alpha;
+          printf("x: %lld, y: %lld, t: %lld, f: %.8lf, z: %.8lf, g: %.8lf\n", word, last_word, target, f, z, g);
           for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1neg[c + l2];
           for (c = 0; c < layer1_size; c++) syn1neg[c + l2] += g * syn0[c + l1];
         }
