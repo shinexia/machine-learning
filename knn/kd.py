@@ -9,7 +9,7 @@ from functools import cmp_to_key
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
-
+from scipy.spatial import distance
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(filename)s:%(lineno)s - %(message)s')
 
@@ -96,18 +96,37 @@ class Heap():
         return self.size >= self.k
 
 
+def label_select_compare(a, b):
+    if a['count'] > b['count']:
+        return -1
+    elif a['count'] < b['count']:
+        return 1
+    elif a['dist'] > b['dist']:
+        return 1
+    elif a['dist'] < b['dist']:
+        return -1
+    else:
+        return 0
+
+
+def l2_distance(a, b):
+    return np.linalg.norm(a - b)
+
+
 class KDTree():
 
-    def __init__(self, root: KDNode, dist_func=None):
+    def __init__(self, root: KDNode, size=0, dist_func=l2_distance):
         self.root: KDNode = root
+        self.size = size
         self.dist_func = dist_func
 
     def search(self, x, k=None) -> List[(float, KDNode)]:
         heap = Heap(k=k)
-        self._search(heap, self.root, x)
+        count = self._search(heap, self.root, x, 0)
+        logging.info('search count: %s, size: %s', count, self.size)
         return heap.result()
 
-    def _search(self, heap: Heap, node: KDNode, x):
+    def _search(self, heap: Heap, node: KDNode, x, count) -> int:
         dist = self.dist_func(node.data, x)
         if not heap.is_full or dist < heap.max_dist:
             heap.add(node, dist)
@@ -129,10 +148,12 @@ class KDTree():
                     best = node.left
                 else:
                     other = node.left
+        count += 1
         if best is not None:
-            self._search(heap, best, x)
+            count = self._search(heap, best, x, count)
         if other is not None and (not heap.is_full or self.dist_func(node.value, aixs_value) < heap.max_dist):
-            self._search(heap, other, x)
+            count = self._search(heap, other, x, count)
+        return count
 
     def pred(self, xs, k=1):
         return np.array([self._pred(x, k=k) for x in xs], np.int)
@@ -152,26 +173,11 @@ class KDTree():
                 s['count'] += 1
                 s['dist'] += dist
         labels = list(stat.values())
+        if len(labels) == 1:
+            return labels[0]['label']
 
-        def compare(a, b):
-            if a['count'] > b['count']:
-                return -1
-            elif a['count'] < b['count']:
-                return 1
-            elif a['dist'] > b['dist']:
-                return 1
-            elif a['dist'] < b['dist']:
-                return -1
-            else:
-                return 0
-        labels.sort(key=cmp_to_key(compare))
-        r = labels[0]['label']
-        logging.info('r: %s, labels: %s', r, labels)
-        return r
-
-
-def l2_distance(a, b):
-    return np.linalg.norm(a - b)
+        labels.sort(key=cmp_to_key(label_select_compare))
+        return labels[0]['label']
 
 
 def split(xs):
@@ -212,19 +218,20 @@ def split(xs):
             return p, left, right
 
 
-def _create_kdnode(x_train, y_train, axis=0, dim=None) -> KDNode:
+def _create_kdnode(x_train, y_train, axis=0, dim=None) -> (KDNode, int):
     if len(x_train) == 0:
-        return None
+        return None, 0
     p, left, right = split(x_train[:, axis])
-    left_node = _create_kdnode(x_train[left], y_train[left], (axis + 1) % dim, dim=dim)
-    right_node = _create_kdnode(x_train[right], y_train[right], (axis + 1) % dim, dim=dim)
-    return KDNode(data=x_train[p], left=left_node, right=right_node, axis=axis, label=y_train[p])
+    left_node, left_size = _create_kdnode(x_train[left], y_train[left], (axis + 1) % dim, dim=dim)
+    right_node, right_size = _create_kdnode(x_train[right], y_train[right], (axis + 1) % dim, dim=dim)
+    return KDNode(data=x_train[p], left=left_node, right=right_node, axis=axis, label=y_train[p]), left_size + right_size + 1
 
 
 def create(x_train, y_train, dist_func=l2_distance) -> KDTree:
     dim = len(x_train[0])
-    root = _create_kdnode(x_train, y_train, axis=0, dim=dim)
-    return KDTree(root, dist_func=dist_func)
+    root, size = _create_kdnode(x_train, y_train, axis=0, dim=dim)
+    assert size == len(x_train)
+    return KDTree(root, size=size, dist_func=dist_func)
 
 
 def main():
