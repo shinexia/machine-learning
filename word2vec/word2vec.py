@@ -11,7 +11,10 @@ import numpy as np
 
 from typing import Dict, List, Iterator, Iterable
 
+# ignore numpy RuntimeWarning: overflow encountered in ulong_scalars
 warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# config logging format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(filename)s:%(lineno)s - %(message)s')
 
 # copy from `word2vec.c`
