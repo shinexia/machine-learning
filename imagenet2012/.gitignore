@@ -1,0 +1,8 @@
+/checkpoints
+/models
+/tensorboard_logs
+/logs
+/model.tgz
+*.db
+*.db-journal
+/flagged
